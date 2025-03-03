@@ -41,7 +41,7 @@ function RedeemTicket() {
         const payload = jwtDecode(token);
         const userId = payload.user_id;
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ticket/sync`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/verifier/verify`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -49,7 +49,7 @@ function RedeemTicket() {
           },
           body: JSON.stringify({
             secret_key: code,
-            user_id: userId
+            userid: userId
           })
         });
 

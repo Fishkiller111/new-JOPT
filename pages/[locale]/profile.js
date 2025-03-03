@@ -30,6 +30,20 @@ import Alert from '@mui/material/Alert';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import { alpha } from '@mui/material/styles';
 
+// 格式化日期函数
+const formatDate = (dateString) => {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return '-';
+    }
+    return date.toLocaleString();
+  } catch (error) {
+    console.error('日期格式化错误:', error);
+    return '-';
+  }
+};
+
 const Input = styled('input')({
   display: 'none',
 });
@@ -63,17 +77,12 @@ export default function Profile() {
   const [userInfo, setUserInfo] = useState({
     name: "",
     cardInfo: "",
-    balance: "0",
     email: "",
-    tickets: [],
     soldTickets: [],
     created_at: "",
     updated_at: ""
   });
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedTicket, setSelectedTicket] = useState(null);
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -88,41 +97,35 @@ export default function Profile() {
         const payload = jwtDecode(token);
         const userId = payload.user_id;
 
-        // 使用 Promise.all 并行发起所有请求
-        const [userResponse, soldTicketsResponse] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/${userId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/ticket/sold/${userId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
-        ]);
+        // 获取用户信息
+        const userResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/${userId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
         if (!userResponse.ok) throw new Error('获取用户信息失败');
-        if (!soldTicketsResponse.ok) throw new Error('获取售票记录失败');
 
-        // 并行处理响应数据
-        const [userData, soldTicketsData] = await Promise.all([
-          userResponse.json(),
-          soldTicketsResponse.json()
-        ]);
-
+        // 处理响应数据
+        const userData = await userResponse.json();
+        
+        console.log('用户数据:', userData); // 调试日志
+        
         // 缓存用户基本信息
         const userBasicInfo = {
           name: userData.username || "",
           email: userData.email || "",
-          balance: userData.balance?.toString() || "0",
           cardInfo: userData.verified ? "已认证用户" : "未认证用户",
           created_at: userData.created_at || "",
           updated_at: userData.updated_at || ""
         };
         localStorage.setItem('userBasicInfo', JSON.stringify(userBasicInfo));
 
+        // 获取所有票据作为售出记录
+        const soldTickets = userData.tickets || [];
+
         // 一次性更新所有状态
         setUserInfo({
           ...userBasicInfo,
-          tickets: userData.tickets || [],
-          soldTickets: soldTicketsData || []
+          soldTickets: soldTickets
         });
 
       } catch (error) {
@@ -148,50 +151,6 @@ export default function Profile() {
 
   const handleBack = () => {
     router.push('/');
-  };
-
-  const handleSellTicket = async (ticket) => {
-    setSelectedTicket(ticket);
-    setOpenDialog(true);
-  };
-
-  const handleConfirmSell = async () => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    const token = localStorage.getItem('token');
-    const payload = jwtDecode(token);
-    
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ticket/sell`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        ticket_id: selectedTicket.id,
-        user_id: payload.user_id
-      })
-    });
-    if (response.status === 200) {
-        setNotification({
-            open: true,
-            message: t('sell_ticket_success'),
-            severity: 'success'
-        });
-    } else {
-        setNotification({
-            open: true,
-            message: t('sell_ticket_failed'),
-            severity: 'error'
-        });
-    }
-    await window.location.reload();
-  };
-    
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setSelectedTicket(null);
   };
 
   const handleCloseNotification = () => {
@@ -306,8 +265,6 @@ export default function Profile() {
               }}
             >
               <Tab label={t('personal_info')} classes={{ root: classes.tabLabel }} />
-              <Tab label={t('card_info')} classes={{ root: classes.tabLabel }} />
-              <Tab label={t('withdraw')} classes={{ root: classes.tabLabel }} />
               <Tab label={t('sales_record')} classes={{ root: classes.tabLabel }} />
             </Tabs>
           </Box>
@@ -353,131 +310,17 @@ export default function Profile() {
               </Grid>
               <Grid item xs={12}>
                 <Typography variant="body2" color="textSecondary">
-                  {t('register_time')}：{new Date(userInfo.created_at).toLocaleString()}
+                  {t('register_time')}：{userInfo.created_at ? formatDate(userInfo.created_at) : '-'}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  {t('last_update')}：{new Date(userInfo.updated_at).toLocaleString()}
+                  {t('last_update')}：{userInfo.updated_at ? formatDate(userInfo.updated_at) : '-'}
                 </Typography>
               </Grid>
             </Grid>
           </TabPanel>
 
-          {/* 卡信息面板 */}
-          <TabPanel value={value} index={1}>
-            <Box p={2}>
-              <Typography variant="h6" className={text.subtitle}>
-                coming soon
-              </Typography>
-              <Typography variant="body1" color="textSecondary">
-                {t('card_valid_until')}: 2025-12-31
-              </Typography>
-            </Box>
-          </TabPanel>
-
-          {/* 提取余额面板 */}
-          <TabPanel value={value} index={2}>
-            <Box p={2}>
-              <Typography variant="h6" className={text.subtitle} gutterBottom>
-                {t('current_balance')}
-              </Typography>
-              <Typography variant="h4" className={text.title} color="primary" gutterBottom>
-                $ {userInfo.balance}
-              </Typography>
-              <Button
-                variant="contained"
-                color="primary"
-                size="large"
-                sx={{ mt: 2 }}
-              >
-                {t('withdraw_now')}
-              </Button>
-            </Box>
-          </TabPanel>
-
           {/* 卖票记录面板 */}
-          <TabPanel value={value} index={3}>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                {t('my_tickets')}
-              </Typography>
-              <List>
-                {userInfo.tickets.filter(ticket => ticket.status !== 'sold').length > 0 ? (
-                  userInfo.tickets
-                    .filter(ticket => ticket.status !== 'sold')
-                    .map((ticket) => (
-                      <ListItem 
-                        key={ticket.id} 
-                        divider
-                        sx={{
-                          display: 'flex',
-                          flexDirection: { xs: 'column', sm: 'row' },
-                          alignItems: { xs: 'stretch', sm: 'center' },
-                          gap: 2,
-                          py: 2
-                        }}
-                      >
-                        <Box sx={{ flex: 1 }}>
-                          <Typography 
-                            variant="h6" 
-                            color="primary.main"
-                            sx={{ mb: 1 }}
-                          >
-                            {ticket.event_name}
-                          </Typography>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 1 }}>
-                            <Box>
-                              <Typography variant="caption" color="textSecondary">
-                                {t('ticket_type')}
-                              </Typography>
-                              <Typography variant="body1">
-                                {ticket.name}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="caption" color="textSecondary">
-                                {t('ticket_price')}
-                              </Typography>
-                              <Typography 
-                                variant="body1" 
-                                color="primary"
-                                sx={{ fontWeight: 500 }}
-                              >
-                                ${ticket.price.toLocaleString()}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="caption" color="textSecondary">
-                                {t('venue')}
-                              </Typography>
-                              <Typography variant="body1">
-                                {ticket.event_place}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          onClick={() => handleSellTicket(ticket)}
-                          sx={{ 
-                            alignSelf: { xs: 'stretch', sm: 'center' },
-                            minWidth: 100
-                          }}
-                        >
-                          {t('sell_ticket')}
-                        </Button>
-                      </ListItem>
-                    ))
-                ) : (
-                  <Typography variant="body1" color="textSecondary" align="center">
-                    {t('no_tickets_available')}
-                  </Typography>
-                )}
-              </List>
-            </Box>
-
-            <Divider sx={{ my: 3 }} />
-
+          <TabPanel value={value} index={1}>
             <Typography variant="h6" gutterBottom>
               {t('sales_record')}
             </Typography>
@@ -497,10 +340,10 @@ export default function Profile() {
                             {t('venue')}：{ticket.event_place}
                           </Typography>
                           <Typography component="div" variant="body2" color="textSecondary">
-                            {t('sold_time')}：{new Date(ticket.sold_time).toLocaleString()}
+                            {t('sold_time')}：{ticket.sold_time ? formatDate(ticket.sold_time) : '-'}
                           </Typography>
                           <Typography component="div" variant="body2" color="textSecondary">
-                            {t('verify_time')}：{new Date(ticket.verify_time).toLocaleString()}
+                            {t('verify_time')}：{ticket.verify_time ? formatDate(ticket.verify_time) : '-'}
                           </Typography>
                           <Typography component="div" variant="body2" color="primary" sx={{ mt: 1 }}>
                             {t('sold_price')}：${ticket.price}
@@ -512,11 +355,15 @@ export default function Profile() {
                       <Typography 
                         variant="body2" 
                         sx={{ 
-                          color: ticket.status === 'sold' ? 'success.main' : 'warning.main',
+                          color: ticket.status === 'used' 
+                            ? 'success.main' 
+                            : ticket.status === 'invalid' 
+                              ? 'error.main' 
+                              : 'warning.main',
                           mb: 1
                         }}
                       >
-                        {ticket.status === 'sold' ? t('sold') : t(ticket.status)}
+                        {t(ticket.status)}
                       </Typography>
                       <Typography variant="caption" color="textSecondary">
                         {t('secret_key')}：{ticket.secret_key}
@@ -532,35 +379,6 @@ export default function Profile() {
             </List>
           </TabPanel>
         </Paper>
-
-        {/* 卖票确认对话框 */}
-        <Dialog
-          open={openDialog}
-          onClose={handleCloseDialog}
-          aria-labelledby="sell-ticket-dialog"
-        >
-          <DialogTitle id="sell-ticket-dialog">{t('confirm_sell')}</DialogTitle>
-          <DialogContent>
-            {selectedTicket && (
-              <Typography>
-                {t('confirm_sell_message', { event: selectedTicket.event_name })}
-              </Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog} color="primary" disabled={isSubmitting}>
-              {t('cancel')}
-            </Button>
-            <Button 
-              onClick={handleConfirmSell} 
-              color="primary" 
-              variant="contained"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? t('confirming') : t('confirm')}
-            </Button>
-          </DialogActions>
-        </Dialog>
 
         {/* 通知消息 */}
         <Snackbar

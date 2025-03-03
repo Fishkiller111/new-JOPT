@@ -16,6 +16,7 @@ import AuthFrame from './AuthFrame';
 import useStyles from './form-style';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import ForgotPassword from './ForgotPassword';
 
 function Login() {
   const { classes } = useStyles();
@@ -24,6 +25,7 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [openForgotPassword, setOpenForgotPassword] = useState(false);
 
   const [values, setValues] = useState({
     email: '',
@@ -54,6 +56,14 @@ function Login() {
       return;
     }
     setOpenSnackbar(false);
+  };
+
+  const handleOpenForgotPassword = () => {
+    setOpenForgotPassword(true);
+  };
+
+  const handleCloseForgotPassword = () => {
+    setOpenForgotPassword(false);
   };
 
   const handleSubmit = async () => {
@@ -169,7 +179,11 @@ function Login() {
                 </span>
               )}
             />
-            <Button size="small" className={classes.buttonLink} href="#">
+            <Button 
+              size="small" 
+              className={classes.buttonLink} 
+              onClick={handleOpenForgotPassword}
+            >
               {t('login_forgot')}
             </Button>
           </div>
@@ -199,6 +213,12 @@ function Login() {
           {t('login_success')}
         </Alert>
       </Snackbar>
+
+      {/* 忘记密码对话框 */}
+      <ForgotPassword 
+        open={openForgotPassword} 
+        onClose={handleCloseForgotPassword} 
+      />
     </AuthFrame>
   );
 }
